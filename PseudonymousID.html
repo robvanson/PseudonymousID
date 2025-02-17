@@ -412,7 +412,7 @@ function bit_rol(num, cnt)
         var textList = document.Form.List.value.split("\n");
         var newText="";
         for(i = 0; i < textList.length; i++){
-            var cleanText = textList[i].replace(/[ \t,;]+/g, "\t");
+            var cleanText = textList[i].replace(/[\t,;]+/g, "\t");
             if(cleanText.search(/[a-zA-Z0-9]/) != -1)
             {
                 var currentValues = [];
@@ -430,7 +430,7 @@ function bit_rol(num, cnt)
     };
     function writeSecurityInfo ()
     {
-        var textList = document.Form.List.value.split(/[ \t,;:\n]+/);
+        var textList = document.Form.List.value.split(/[\t,;:\n]+/);
         var personalIDlength = textList[1].length;
         var codeNoun = "nummeric";
         var personalIDbase = 0;
@@ -575,7 +575,7 @@ href="" onClick='writeSecurityInfo();return false;'>more information</a>).</p>
 <table>
 <tr align=center>
 <td style='text-align: left'><input type=button name=Create value=Create onClick='processList();return true;'></td>
-<td><input type=button name=Reset value="Reset" onClick='document.Form.List.value="";document.Form.List.style.color="black";return false;'></td>
+<td><input type=button name=Reset value="Reset" onClick='document.Form.List.value="John Doe 1990,12345678,[Pseudonymous ID]";document.Form.List.style.color="black";return false;'></td>
 <td style='text-align: right'>All fields<input type=checkbox ID=UseAll value=UseAll'></td>
 <td align=right>&nbsp;</td>
 <td align=right>ID Length <input type=text name=Length value="8" size=2 onChange='setCollisionLengthData();return true'></td>
@@ -588,8 +588,8 @@ href="" onClick='writeSecurityInfo();return false;'>more information</a>).</p>
 <tr>
 <td colspan=5>
 <textarea name=List rows=10 cols=80 
-onClick='if(document.Form.List.value=="iiiyyyy 0000000 --------"){document.Form.List.value="";document.Form.List.style.color="black"};return true;'>
-iiiyyyy 0000000 --------</textarea>
+onClick='if(document.Form.List.value=="John Doe 1990,12345678,[Pseudonymous ID]"){document.Form.List.value="";document.Form.List.style.color="black"};return true;'>
+John Doe 1990,12345678,[Pseudonymous ID]</textarea>
 </td>
 <td><span id=BackgroundInfo>&nbsp;</a></td>
 </tr>
@@ -601,13 +601,13 @@ iiiyyyy 0000000 --------</textarea>
 </p>
 <p>
 You may paste a list of Initials+YoB/Personal ID pairs on separate lines in the text field. 
-Initials+YoB and ID fields must be separated by spaces, tabs, commas, or semicolons. 
+Initials+YoB and ID fields must be separated by commas, semicolons, or tabs. 
 Only the first two fields are used, unless the <i>All fields</i> box is checked. With the <i>All fields</i> box checked, all text on a row is used to generate
 an ID. A "-" dash is inserted as a separator.
 A tab-delimited list of Initials+YoB, Personal ID, and Pseudonymous ID will be returned. 
 Formats for Initials+YoB and Personal ID fields are not fixed. 
 You can use any number and type of printable characters, except that you cannot use one of ", ;" (comma nor semicolon) 
-nor white-space characters (space, tab, newline). Note that the fields are case sensitive "june", "June", and "JUNE" all give different Pseudonymous IDs.
+nor tabs or newlines. Note that the fields are case sensitive "june", "June", and "JUNE" all give different Pseudonymous IDs.
 </p>
 <p>The minumum length chosen for the pseudonymous ID should be at least 1 1/3 times the number of digits of the maximal number of person IDs ever needed (order of magnitude). 
 For example, if upto around 100,000 persons would ever need an pseudonymous ID, a length of 8 would suffice (1.33*6). More precisely, there will be a <input type=text name=Alpha value="1" size=1 onLoad='' onChange='if(document.Form.Alpha.value.length>3){document.Form.Alpha.size=4}else{document.Form.Alpha.size=1};if(document.Form.Alpha.value<=0||document.Form.Alpha.value>100){document.Form.Alpha.value=1};setCollisionLengthData();return true'>% chance of 
