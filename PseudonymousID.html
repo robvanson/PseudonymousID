@@ -1,0 +1,649 @@
+<html>
+<head>
+<title>Pseudonymous IDs</title>
+<script type="text/javascript">
+/*
+ * A JavaScript implementation of the Secure Hash Algorithm, SHA-1, as defined
+ * in FIPS 180-1
+ * Version 2.2 Copyright Paul Johnston 2000 - 2009.
+ * Other contributors: Greg Holt, Andrew Kepert, Ydnar, Lostinet
+ * Distributed under the BSD License
+ * See http://pajhome.org.uk/crypt/md5 for details.
+ */
+
+/*
+ * Configurable variables. You may need to tweak these to be compatible with
+ * the server-side, but the defaults work in most cases.
+ */
+var hexcase = 0;  /* hex output format. 0 - lowercase; 1 - uppercase        */
+var b64pad  = ""; /* base-64 pad character. "=" for strict RFC compliance   */
+
+/*
+ * These are the functions you'll usually want to call
+ * They take string arguments and return either hex or base-64 encoded strings
+ */
+function hex_sha1(s)    { return rstr2hex(rstr_sha1(str2rstr_utf8(s))); }
+function b64_sha1(s)    { return rstr2b64(rstr_sha1(str2rstr_utf8(s))); }
+function any_sha1(s, e) { return rstr2any(rstr_sha1(str2rstr_utf8(s)), e); }
+function hex_hmac_sha1(k, d)
+  { return rstr2hex(rstr_hmac_sha1(str2rstr_utf8(k), str2rstr_utf8(d))); }
+function b64_hmac_sha1(k, d)
+  { return rstr2b64(rstr_hmac_sha1(str2rstr_utf8(k), str2rstr_utf8(d))); }
+function any_hmac_sha1(k, d, e)
+  { return rstr2any(rstr_hmac_sha1(str2rstr_utf8(k), str2rstr_utf8(d)), e); }
+
+/*
+ * Perform a simple self-test to see if the VM is working
+ */
+function sha1_vm_test()
+{
+  return hex_sha1("abc").toLowerCase() == "a9993e364706816aba3e25717850c26c9cd0d89d";
+}
+
+/*
+ * Calculate the SHA1 of a raw string
+ */
+function rstr_sha1(s)
+{
+  return binb2rstr(binb_sha1(rstr2binb(s), s.length * 8));
+}
+
+/*
+ * Calculate the HMAC-SHA1 of a key and some data (raw strings)
+ */
+function rstr_hmac_sha1(key, data)
+{
+  var bkey = rstr2binb(key);
+  if(bkey.length > 16) bkey = binb_sha1(bkey, key.length * 8);
+
+  var ipad = Array(16), opad = Array(16);
+  for(var i = 0; i < 16; i++)
+  {
+    ipad[i] = bkey[i] ^ 0x36363636;
+    opad[i] = bkey[i] ^ 0x5C5C5C5C;
+  }
+
+  var hash = binb_sha1(ipad.concat(rstr2binb(data)), 512 + data.length * 8);
+  return binb2rstr(binb_sha1(opad.concat(hash), 512 + 160));
+}
+
+/*
+ * Convert a raw string to a hex string
+ */
+function rstr2hex(input)
+{
+  try { hexcase } catch(e) { hexcase=0; }
+  var hex_tab = hexcase ? "0123456789ABCDEF" : "0123456789abcdef";
+  var output = "";
+  var x;
+  for(var i = 0; i < input.length; i++)
+  {
+    x = input.charCodeAt(i);
+    output += hex_tab.charAt((x >>> 4) & 0x0F)
+           +  hex_tab.charAt( x        & 0x0F);
+  }
+  return output;
+}
+
+/*
+ * Convert a raw string to a base-64 string
+ */
+function rstr2b64(input)
+{
+  try { b64pad } catch(e) { b64pad=''; }
+  var tab = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  var output = "";
+  var len = input.length;
+  for(var i = 0; i < len; i += 3)
+  {
+    var triplet = (input.charCodeAt(i) << 16)
+                | (i + 1 < len ? input.charCodeAt(i+1) << 8 : 0)
+                | (i + 2 < len ? input.charCodeAt(i+2)      : 0);
+    for(var j = 0; j < 4; j++)
+    {
+      if(i * 8 + j * 6 > input.length * 8) output += b64pad;
+      else output += tab.charAt((triplet >>> 6*(3-j)) & 0x3F);
+    }
+  }
+  return output;
+}
+
+/*
+ * Convert a raw string to an arbitrary string encoding
+ */
+function rstr2any(input, encoding)
+{
+  var divisor = encoding.length;
+  var remainders = Array();
+  var i, q, x, quotient;
+
+  /* Convert to an array of 16-bit big-endian values, forming the dividend */
+  var dividend = Array(Math.ceil(input.length / 2));
+  for(i = 0; i < dividend.length; i++)
+  {
+    dividend[i] = (input.charCodeAt(i * 2) << 8) | input.charCodeAt(i * 2 + 1);
+  }
+
+  /*
+   * Repeatedly perform a long division. The binary array forms the dividend,
+   * the length of the encoding is the divisor. Once computed, the quotient
+   * forms the dividend for the next step. We stop when the dividend is zero.
+   * All remainders are stored for later use.
+   */
+  while(dividend.length > 0)
+  {
+    quotient = Array();
+    x = 0;
+    for(i = 0; i < dividend.length; i++)
+    {
+      x = (x << 16) + dividend[i];
+      q = Math.floor(x / divisor);
+      x -= q * divisor;
+      if(quotient.length > 0 || q > 0)
+        quotient[quotient.length] = q;
+    }
+    remainders[remainders.length] = x;
+    dividend = quotient;
+  }
+
+  /* Convert the remainders to the output string */
+  var output = "";
+  for(i = remainders.length - 1; i >= 0; i--)
+    output += encoding.charAt(remainders[i]);
+
+  /* Append leading zero equivalents */
+  var full_length = Math.ceil(input.length * 8 /
+                                    (Math.log(encoding.length) / Math.log(2)))
+  for(i = output.length; i < full_length; i++)
+    output = encoding[0] + output;
+
+  return output;
+}
+
+/*
+ * Encode a string as utf-8.
+ * For efficiency, this assumes the input is valid utf-16.
+ */
+function str2rstr_utf8(input)
+{
+  var output = "";
+  var i = -1;
+  var x, y;
+
+  while(++i < input.length)
+  {
+    /* Decode utf-16 surrogate pairs */
+    x = input.charCodeAt(i);
+    y = i + 1 < input.length ? input.charCodeAt(i + 1) : 0;
+    if(0xD800 <= x && x <= 0xDBFF && 0xDC00 <= y && y <= 0xDFFF)
+    {
+      x = 0x10000 + ((x & 0x03FF) << 10) + (y & 0x03FF);
+      i++;
+    }
+
+    /* Encode output as utf-8 */
+    if(x <= 0x7F)
+      output += String.fromCharCode(x);
+    else if(x <= 0x7FF)
+      output += String.fromCharCode(0xC0 | ((x >>> 6 ) & 0x1F),
+                                    0x80 | ( x         & 0x3F));
+    else if(x <= 0xFFFF)
+      output += String.fromCharCode(0xE0 | ((x >>> 12) & 0x0F),
+                                    0x80 | ((x >>> 6 ) & 0x3F),
+                                    0x80 | ( x         & 0x3F));
+    else if(x <= 0x1FFFFF)
+      output += String.fromCharCode(0xF0 | ((x >>> 18) & 0x07),
+                                    0x80 | ((x >>> 12) & 0x3F),
+                                    0x80 | ((x >>> 6 ) & 0x3F),
+                                    0x80 | ( x         & 0x3F));
+  }
+  return output;
+}
+
+/*
+ * Encode a string as utf-16
+ */
+function str2rstr_utf16le(input)
+{
+  var output = "";
+  for(var i = 0; i < input.length; i++)
+    output += String.fromCharCode( input.charCodeAt(i)        & 0xFF,
+                                  (input.charCodeAt(i) >>> 8) & 0xFF);
+  return output;
+}
+
+function str2rstr_utf16be(input)
+{
+  var output = "";
+  for(var i = 0; i < input.length; i++)
+    output += String.fromCharCode((input.charCodeAt(i) >>> 8) & 0xFF,
+                                   input.charCodeAt(i)        & 0xFF);
+  return output;
+}
+
+/*
+ * Convert a raw string to an array of big-endian words
+ * Characters >255 have their high-byte silently ignored.
+ */
+function rstr2binb(input)
+{
+  var output = Array(input.length >> 2);
+  for(var i = 0; i < output.length; i++)
+    output[i] = 0;
+  for(var i = 0; i < input.length * 8; i += 8)
+    output[i>>5] |= (input.charCodeAt(i / 8) & 0xFF) << (24 - i % 32);
+  return output;
+}
+
+/*
+ * Convert an array of big-endian words to a string
+ */
+function binb2rstr(input)
+{
+  var output = "";
+  for(var i = 0; i < input.length * 32; i += 8)
+    output += String.fromCharCode((input[i>>5] >>> (24 - i % 32)) & 0xFF);
+  return output;
+}
+
+/*
+ * Calculate the SHA-1 of an array of big-endian words, and a bit length
+ */
+function binb_sha1(x, len)
+{
+  /* append padding */
+  x[len >> 5] |= 0x80 << (24 - len % 32);
+  x[((len + 64 >> 9) << 4) + 15] = len;
+
+  var w = Array(80);
+  var a =  1732584193;
+  var b = -271733879;
+  var c = -1732584194;
+  var d =  271733878;
+  var e = -1009589776;
+
+  for(var i = 0; i < x.length; i += 16)
+  {
+    var olda = a;
+    var oldb = b;
+    var oldc = c;
+    var oldd = d;
+    var olde = e;
+
+    for(var j = 0; j < 80; j++)
+    {
+      if(j < 16) w[j] = x[i + j];
+      else w[j] = bit_rol(w[j-3] ^ w[j-8] ^ w[j-14] ^ w[j-16], 1);
+      var t = safe_add(safe_add(bit_rol(a, 5), sha1_ft(j, b, c, d)),
+                       safe_add(safe_add(e, w[j]), sha1_kt(j)));
+      e = d;
+      d = c;
+      c = bit_rol(b, 30);
+      b = a;
+      a = t;
+    }
+
+    a = safe_add(a, olda);
+    b = safe_add(b, oldb);
+    c = safe_add(c, oldc);
+    d = safe_add(d, oldd);
+    e = safe_add(e, olde);
+  }
+  return Array(a, b, c, d, e);
+
+}
+
+/*
+ * Perform the appropriate triplet combination function for the current
+ * iteration
+ */
+function sha1_ft(t, b, c, d)
+{
+  if(t < 20) return (b & c) | ((~b) & d);
+  if(t < 40) return b ^ c ^ d;
+  if(t < 60) return (b & c) | (b & d) | (c & d);
+  return b ^ c ^ d;
+}
+
+/*
+ * Determine the appropriate additive constant for the current iteration
+ */
+function sha1_kt(t)
+{
+  return (t < 20) ?  1518500249 : (t < 40) ?  1859775393 :
+         (t < 60) ? -1894007588 : -899497514;
+}
+
+/*
+ * Add integers, wrapping at 2^32. This uses 16-bit operations internally
+ * to work around bugs in some JS interpreters.
+ */
+function safe_add(x, y)
+{
+  var lsw = (x & 0xFFFF) + (y & 0xFFFF);
+  var msw = (x >> 16) + (y >> 16) + (lsw >> 16);
+  return (msw << 16) | (lsw & 0xFFFF);
+}
+
+/*
+ * Bitwise rotate a 32-bit number to the left.
+ */
+function bit_rol(num, cnt)
+{
+  return (num << cnt) | (num >>> (32 - cnt));
+}
+</script>
+<script type="text/javascript">
+    var CharacterSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    var NumCharSet = CharacterSet.length;
+    function numberToReadableText (number)
+    {
+        if(number >= Math.pow(10, 14))
+        {
+            var expNumber = Math.floor(Math.log(number)/Math.LN10);
+            readableNumber = Math.round(number/Math.pow(10, expNumber)) + " * 10^"+ expNumber;
+        }
+        else if(number >= Math.pow(10, 13))
+        {
+            readableNumber = Math.round(number/Math.pow(10, 12)) + " trillion";
+        }
+        else if(number >= Math.pow(10, 12))
+        {
+            readableNumber = (Math.round(number/Math.pow(10, 11))/10) + " trillion";
+        }
+        else if(number >= Math.pow(10, 10))
+        {
+            readableNumber = Math.round(number/Math.pow(10, 9)) + " billion";
+        }
+        else if(number >= Math.pow(10, 9))
+        {
+            readableNumber = (Math.round(number/Math.pow(10, 8))/10) + " billion";
+        }
+        else if(number >= Math.pow(10, 7))
+        {
+            readableNumber = Math.round(number/Math.pow(10, 6)) + " million";
+        }
+        else if(number >= Math.pow(10, 6))
+        {
+            readableNumber = (Math.round(number/Math.pow(10, 5))/10) + " million";
+        }
+        else if(number >= Math.pow(10, 4))
+        {
+            readableNumber = Math.round(number/Math.pow(10, 3)) + " thousand";
+        }
+        else if(number >= Math.pow(10, 3))
+        {
+            readableNumber = (Math.round(number/Math.pow(10, 2))/10) + " thousand";
+        }
+        else
+        {
+            readableNumber = Math.round(number) + "";
+        };
+        return readableNumber;
+    };
+    function alphaBound (alpha, IDlength)
+    {
+        if(alpha <= 0){alpha=0.01};
+        if(alpha > 1){alpha=1};
+        var bitsize = IDlength * Math.log(NumCharSet)/Math.LN2;
+        // Birthday Paradox approximation
+        // 1 - e ^(-N^2 / (2 * H)) = alpha = P(collision)
+        // N = sqrt(2*ln(1/(1-alpha))*sqrt(H)
+        // N: number of evenly distributed hashes to compare; H: the size of the element count of all possible hashes.
+        var N = Math.sqrt(2*Math.log(1/(1-alpha)))*Math.pow(2, (bitsize / 2));
+        if(N > Math.pow(2, bitsize)){N = Math.pow(2, bitsize)};
+        return Math.floor(N);
+    };
+    function setCollisionLengthData ()
+    {
+        var span1 = document.getElementById('CurrentIDLength');
+        span1.firstChild.data = document.Form.Length.value;
+        var span2 = document.getElementById('CollisionRate');
+        span2.firstChild.data = numberToReadableText(alphaBound(document.Form.Alpha.value/100.0,document.Form.Length.value));
+    };
+    function processList ()
+    {
+        var useall = document.getElementById('UseAll');
+        var secretKey = document.getElementById('SecretKey');
+        var keyText = secretKey.value;
+        if(keyText == '--------' ) {
+			keyText = '';
+		};
+        var textList = document.Form.List.value.split("\n");
+        var newText="";
+        for(i = 0; i < textList.length; i++){
+            var cleanText = textList[i].replace(/[ \t,;]+/g, "\t");
+            if(cleanText.search(/[a-zA-Z0-9]/) != -1)
+            {
+                var currentValues = [];
+				if(useall.checked){
+					currentValues[0] = cleanText;
+				} else {
+					currentValues = cleanText.split("\t");
+				};
+                if(currentValues.length == 1){currentValues.push("-");};
+                var newPseudonymousID = any_sha1(currentValues[0] + currentValues[1] + keyText, CharacterSet).substr(0,document.Form.Length.value);
+                newText = newText + currentValues[0] + "\t" + currentValues[1] + "\t" + newPseudonymousID + "\n";
+            };
+        };
+        document.Form.List.value = newText;
+    };
+    function writeSecurityInfo ()
+    {
+        var textList = document.Form.List.value.split(/[ \t,;:\n]+/);
+        var personalIDlength = textList[1].length;
+        var codeNoun = "nummeric";
+        var personalIDbase = 0;
+        if(textList[1].search(/[0-9]/) > -1){personalIDbase = personalIDbase+10;};
+        if(textList[1].search(/[a-z]/) > -1){personalIDbase = personalIDbase+26;};
+        if(textList[1].search(/[A-Z]/) > -1){personalIDbase = personalIDbase+26;};
+        var secretKey = document.getElementById('SecretKey');
+        var keyText = secretKey.value;
+		keyBits = (Math.log(36)/Math.LN2)*keyText.length;
+		keyOptions = Math.pow(2,keyBits);
+		keyOptionsText = numberToReadableText(keyOptions)
+        
+        if(personalIDbase >= 62){codeNoun = "alphanumeric (mixed case)"}
+        else if(personalIDbase >= 52){codeNoun = "alphabetic (mixed case)"}
+        else if(personalIDbase >= 36){codeNoun = "alphanumeric (single case)"}
+        else if(personalIDbase >= 26){codeNoun = "alphabetic (single case)"}
+        else                         {personalIDbase = 10;codeNoun = "numeric"};
+
+        var idLength = document.Form.Length.value;
+        // log2(number of hashes)
+        var bitsize = idLength * Math.log(NumCharSet)/Math.LN2;
+        // Number of possible records devided by the number of hashes
+        var redundancy = Math.ceil(40560 * Math.pow(personalIDbase, personalIDlength) / Math.pow(2, bitsize));
+        var keyRedundancy = Math.ceil(40560 * keyOptions * Math.pow(personalIDbase, personalIDlength) / Math.pow(2, bitsize));
+        var keyRedundancyText = numberToReadableText(keyRedundancy)
+        
+        var numPersonIDnumberstext = Math.pow(personalIDbase, personalIDlength);
+        var numAnonIDtext = 40560 * numPersonIDnumberstext;
+        var numAnonIDbits = Math.ceil(Math.log(numAnonIDtext)/Math.LN2);
+        var qualification = "very easily ";
+        numPersonIDnumberstext = numberToReadableText(numPersonIDnumberstext);
+        
+        // Estimate effort and increase in computer speed. See
+        // http://arxiv.org/abs/0911.5262 Quantifying Resource Use in Computations
+        // http://arxiv.org/abs/1003.2123 Quantifying Shannon's Work Function for Cryptanalytic Attacks
+        // 2.6 dB/year ~ 0.863 bits/year
+        var currentDate = new Date();
+        var yearsPast2010 = currentDate.getUTCFullYear() - 2010;
+        var bitsAdded = 0.863 * yearsPast2010;
+        if(numAnonIDbits >= 90 + bitsAdded)
+        {
+            qualification = " only in theory, but not in practise";
+        }
+        else if(numAnonIDbits >= 80 + bitsAdded)
+        {
+            qualification = " only with extreme difficulty";
+        }
+        else if(numAnonIDbits >= 72 + bitsAdded)
+        {
+            qualification = " with difficulty";
+        }
+        else if(numAnonIDbits >= 56 + bitsAdded)
+        {
+            qualification = " with considerable effort";
+        }
+        else if(numAnonIDbits >= 48 + bitsAdded)
+        {
+            qualification = " with some effort";
+        }
+        else if(numAnonIDbits >= 40 + bitsAdded)
+        {
+            qualification = "";
+        }
+        else if(numAnonIDbits >= 32 + bitsAdded)
+        {
+            qualification = " easily";
+        }
+        else if(numAnonIDbits >= 24)
+        {
+            qualification = " very easily";
+        }
+        else
+        {
+            qualification = " trivially";
+        };
+        numAnonIDtext = numberToReadableText(numAnonIDtext);
+        
+        // Text
+        var securityInfo =
+        "It is rather easy to try out all possible combinations of initials, birthdate and personal ID number to find a combination "+
+        "matching a particular pseudonymous ID.\n\n"+
+        "In general, birthdates will span around 60 years combined with two letter initials, gives some 40,000 options. "+
+        "A " + personalIDlength + " place random "+codeNoun+" personal ID supports "+ numPersonIDnumberstext + " unique ID codes. "+
+        "Checking the pseudonymous ID against all possible " + numAnonIDtext + " combinations of Initials+YoB and personal ID can be done on a computer" + qualification + ".\n\n"+
+        "By chosing a short pseudonymous ID label, any existing risk can be reduced. "+
+        "A short pseudonymous ID means that there will be many combinations of Initials+YoB and personal ID that will match "+
+        "a given pseudonymous ID.\n\n";
+        if(redundancy > 1)
+        {
+            var readableRedundancy = numberToReadableText(redundancy);
+          
+            securityInfo = securityInfo +
+            "With an ID length of "+ idLength +" there will be "+ readableRedundancy +" matching combinations for each pseudonymous ID.\n\n";
+        }
+        else
+        {
+            securityInfo = securityInfo +
+            "With an ID length of "+ idLength +" there will be only "+ redundancy +" unique matching combination for each pseudonymous ID.\n\n";
+        };
+        
+        securityInfo = securityInfo +
+            "Note: Adding more personal information to the construction of the pseudonymous ID does not increase security. "+
+            "On the contrary, it will increase the amount of personal information that will leak. "+
+            "If you really need better security, add an alphanumeric secret key to the Personal ID code.\n\n";
+        
+        securityInfo = securityInfo +
+            "A secret key with "+keyText.length+" alphanumeric characters (0-9, A-Z) increases the number of options to test by a factor of "+keyOptionsText+". "+
+            "Such a secret key would increase the number of valid options for a given pseudonymous ID to "+keyRedundancyText+"\n\n";
+            
+        alert(securityInfo);
+        return true;
+    };
+    function writeBackgroundInfo ()
+    {
+        var backgroundInfo =
+        "Birthday Paradox approximation for large numbers:\n\n"+
+        "P(collision) = 1 - e ^(-N^2 / (2 * H)) = alpha\n"+
+        "N = sqrt(2*ln(1/(1-alpha))*sqrt(H)\n"+
+        "N: number of evenly distributed hashes to compare\n"+
+        "H: the size of the element count of all possible hashes\n"+
+        "H = 2^(IDlength*ln("+NumCharSet+")/ln(2))\n\n"+
+        "Hashes calculated with SHA1 (IDlength <= "
+            +Math.floor(160/(Math.log(NumCharSet)/Math.LN2))+")";
+
+        alert(backgroundInfo);
+        return true;
+    };
+</script>
+</head>
+<body onLoad='document.Form.Alpha.value=1;setCollisionLengthData();if(document.Form.List.value=="iiiyyyy 0000000 --------"){document.Form.List.style.color="grey"}return true'>
+<noscript>
+<h1 align=center STYLE="color:red">You need to enable JavaScript to use the functionality on this page</h1>
+</noscript>
+<h1 align=CENTER>Create an pseudonymous ID</h1>
+<p>
+Create an pseudonymous ID based on a personal ID number and a combination of the Initials and the year of birth (Initials+YoB). 
+An exhaustive search can find the original values matching the pseudonymous ID unless a strong Key is added for security. 
+Therefore, make sure the personal ID number cannot easily be used to identify a person (<a
+href="" onClick='writeSecurityInfo();return false;'>more information</a>).</p>
+<form name=Form>
+<p align=center>
+<table>
+<tr align=center>
+<td style='text-align: left'><input type=button name=Create value=Create onClick='processList();return true;'></td>
+<td><input type=button name=Reset value="Reset" onClick='document.Form.List.value="";document.Form.List.style.color="black";return false;'></td>
+<td style='text-align: right'>All fields<input type=checkbox ID=UseAll value=UseAll'></td>
+<td align=right>&nbsp;</td>
+<td align=right>ID Length <input type=text name=Length value="8" size=2 onChange='setCollisionLengthData();return true'></td>
+</tr>
+<tr align=center>
+<td>Initials+YoB</td><td>&nbsp;</td>
+<td>Personal ID</td><td>&nbsp;</td>
+<td>Pseudonymous ID</td><td>&nbsp;</td>
+</tr>
+<tr>
+<td colspan=5>
+<textarea name=List rows=10 cols=80 
+onClick='if(document.Form.List.value=="iiiyyyy 0000000 --------"){document.Form.List.value="";document.Form.List.style.color="black"};return true;'>
+iiiyyyy 0000000 --------</textarea>
+</td>
+<td><span id=BackgroundInfo>&nbsp;</a></td>
+</tr>
+<tr>
+<td>Key <input type=text ID=SecretKey value="----------------" size=16 onClick='if(this.value == "--------"){this.style.color="black";this.value="";};return true' style='color:Grey'></td>
+<td colspan=5 style='text-align: left'>(increases security)</td>
+</tr>
+</table>
+</p>
+<p>
+You may paste a list of Initials+YoB/Personal ID pairs on separate lines in the text field. 
+Initials+YoB and ID fields must be separated by spaces, tabs, commas, or semicolons. 
+Only the first two fields are used, unless the <i>All fields</i> box is checked. With the <i>All fields</i> box checked, all text on a row is used to generate
+an ID. A "-" dash is inserted as a separator.
+A tab-delimited list of Initials+YoB, Personal ID, and Pseudonymous ID will be returned. 
+Formats for Initials+YoB and Personal ID fields are not fixed. 
+You can use any number and type of printable characters, except that you cannot use one of ", ;" (comma nor semicolon) 
+nor white-space characters (space, tab, newline). Note that the fields are case sensitive "june", "June", and "JUNE" all give different Pseudonymous IDs.
+</p>
+<p>The minumum length chosen for the pseudonymous ID should be at least 1 1/3 times the number of digits of the maximal number of person IDs ever needed (order of magnitude). 
+For example, if upto around 100,000 persons would ever need an pseudonymous ID, a length of 8 would suffice (1.33*6). More precisely, there will be a <input type=text name=Alpha value="1" size=1 onLoad='' onChange='if(document.Form.Alpha.value.length>3){document.Form.Alpha.size=4}else{document.Form.Alpha.size=1};if(document.Form.Alpha.value<=0||document.Form.Alpha.value>100){document.Form.Alpha.value=1};setCollisionLengthData();return true'>% chance of 
+two or more persons getting the same ID ("collision") after giving out <b><span id=CollisionRate>238 thousand</span></b> ID numbers, for a chosen ID length of 
+<b><span id=CurrentIDLength>8</span></b> characters (<a
+href="" onClick='writeBackgroundInfo();return false;'>more information</a>).
+</p>
+<p>
+<FONT STYLE="font-size:small"><i>
+Note: These numbers are approximations. See NO-WARRANTY clause below.
+</i></FONT>
+</p>
+</form>
+<p>
+<hr>
+</p>
+<FONT STYLE="font-size:small">
+<p> Create an pseudonymous ID<br />
+    Pseudonymous IDs are created by client side (in-page) JavaScript. This page can be saved locally and used from local storage. 
+    No information should be transmitted from your computer.<br />
+    Copyright &copy; 2011  R.J.J.H. van Son<br />
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.<br />
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.<br />
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <a href="http://www.gnu.org/licenses/">http://www.gnu.org/licenses/</a>.</p>
+<p> JavaScript implementation of the Secure Hash Algorithm, SHA-1, as defined in FIPS 180-1<br />
+    Copyright &copy; 2000 - 2009 Paul Johnston, Version 2.2<br />
+    Other contributors: Greg Holt, Andrew Kepert, Ydnar, Lostinet<br />
+    Distributed under the BSD License<br />
+    See <a href="http://pajhome.org.uk/crypt/md5">http://pajhome.org.uk/crypt/md5</a> for details.
+</FONT>
+</body>
+</html>
